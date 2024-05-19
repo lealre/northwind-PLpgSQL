@@ -1,1 +1,1 @@
-# nothwind-PLpgSQL
+# northwind-PLpgSQL
