@@ -64,7 +64,7 @@ A stored procedure was created to facilitate the update of an employee's title. 
 CREATE OR REPLACE PROCEDURE update_employee_title(
     p_employee_id INT,
     p_new_title VARCHAR(100)
-    )
+)
 AS $$
 BEGIN
     UPDATE employees
@@ -227,3 +227,10 @@ The `-d` flag is used to run the container detached from the terminal.
 `Password`: `postgres`
 
 <img src="pics/4.png"  width=500>
+
+After completing this final step, you will be able to test the automations by running the queries below:
+
+```sql
+CALL update_employee_title(1, 'Manager');
+CALL insert_order(10692, 10, 27);
+```
