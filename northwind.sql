@@ -3917,15 +3917,15 @@ ALTER TABLE ONLY employees
 -- Procedure/Trigger employees_audit
 CREATE TABLE employees_audit (
     employee_id INT,
-    previous_name VARCHAR(100),
-    new_name VARCHAR(100),
+    previous_title VARCHAR(100),
+    new_title VARCHAR(100),
     modification_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE OR REPLACE FUNCTION register_title_audit()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO employees_audit (employee_id, previous_name, new_name)
+    INSERT INTO employees_audit (employee_id, previous_title, new_title)
     VALUES (NEW.employee_id, OLD.title, NEW.title);
     RETURN NEW;
 END;
