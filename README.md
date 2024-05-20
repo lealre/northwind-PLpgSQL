@@ -6,11 +6,19 @@ The Northwind database contains sales data from Northwind Traders, a company tha
 
 As these are just two simple automations, using SQL directly to perform this kind of operation can be beneficial in terms of performance and simplicity. Additionally, it promotes better integration with the existing database infrastructure and reduces dependencies on external tools or frameworks.
 
-This project can be run using only Docker, as it builds both the PostgreSQL database and the pgAdmin client. All instructions are provided in the "How to Run This Project" section.
+This project can be run using only Docker, as it builds both the PostgreSQL database and the pgAdmin client. All instructions are provided in the [How to run this project](#how-to-run-this-project) section.
+
+## Table of Contents
+
+- [How it works](#how-it-works)
+    - [Employees audit table automation](#employees-audit-table-automation)
+    - [Stock automation](#stock-automation)
+- [Database context](#database-context)
+- [How to run this project](#how-to-run-this-project)
 
 ## How it works 
 
-### Employees auditory table
+### Employees audit table automation
 
 This automation aims to monitor and update changes in employee titles in the `employees` table and record these changes in the `employees_audit` table.
 
@@ -56,7 +64,7 @@ A stored procedure was created to facilitate the update of an employee's title. 
 CREATE OR REPLACE PROCEDURE update_employee_title(
     p_employee_id INT,
     p_new_title VARCHAR(100)
-)
+    )
 AS $$
 BEGIN
     UPDATE employees
@@ -66,9 +74,16 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
+We can use the procedure and see how the trigger works by using the query below as an example.
+
+```sql
+CALL update_employee_title(1, 'Manager');
+```
 
 
-### Stock assertation
+### Stock automation
+
+The second automation aims to verify if there is sufficient stock in the `products` table when a new order is inserted into the `order_details` table. It shows a message if the quantity of the product we are attempting to insert is below the available stock, thereby denying the fulfillment of the order. If the stock is sufficient, it updates the products table by decreasing the available quantity after the new order has been inserted.
 
 ```mermaid
 graph TB;
@@ -78,7 +93,66 @@ graph TB;
     C -- No --> E[Raise exception: Insufficient stock];
 ```
 
+The automation operates in a way that before every insertion into the `order_details` table, it automatically triggers the function `assert_stock()`, which is responsible for retrieving the current quantity available for the specific product and verifying if the transaction is possible. If it is possible, the new order is inserted into the `order_details` table, and the `products` table is updated accordingly. If it is not possible, an exception is raised, displaying a message.
 
+```sql
+CREATE OR REPLACE FUNCTION assert_stock()
+RETURNS TRIGGER AS $$
+DECLARE
+    current_quantity INTEGER;
+BEGIN
+    -- get current quantity available
+    SELECT units_in_stock INTO current_quantity
+    FROM products
+    WHERE product_id = NEW.product_id;
+
+    -- Veritfy if transaction is possible and update products table
+    IF NEW.quantity > current_quantity THEN
+        RAISE EXCEPTION 'Insufficient stock available. Available quantity: %', current_quantity;
+    ELSE
+        UPDATE products SET units_in_stock = current_quantity - NEW.quantity
+        WHERE product_id = NEW.product_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_assert_stock
+BEFORE INSERT ON order_details
+FOR EACH ROW
+EXECUTE FUNCTION assert_stock();
+```
+
+A stored procedure was created to facilitate the insertion of an order, and it automatically retrieves the product price from the `products` table.
+
+```sql
+CREATE OR REPLACE PROCEDURE insert_order(
+    p_order_id INT,
+    p_product_id INT,
+    p_quantity INT,
+    p_discount REAL DEFAULT 0  -- Set default value to 0 if not provided
+)
+AS $$
+DECLARE	
+    p_unit_price REAL;
+BEGIN
+    -- Get unit_price from products table
+    SELECT unit_price INTO p_unit_price
+    FROM products
+    WHERE product_id = p_product_id;
+
+    -- Insert the order with the provided values and default discount if not provided
+    INSERT INTO order_details (order_id, product_id, unit_price,  quantity, discount)
+    VALUES (p_order_id, p_product_id, p_unit_price, p_quantity, COALESCE(p_discount, 0));
+END;
+$$ LANGUAGE plpgsql;
+```
+
+We can use the procedure and see how the trigger works by using the query below as an example.
+
+```sql
+CALL insert_order(10692, 10, 27);
+```
 
 ## Database context
 
